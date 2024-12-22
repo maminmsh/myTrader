@@ -15,6 +15,7 @@ def get_bitcoin_data():
     }
     response = requests.get(url, params=params)
     data = response.json()
+    print("Response from API:", data)  # چاپ پاسخ API برای دیباگ
     prices = data["prices"]
     df = pd.DataFrame(prices, columns=["timestamp", "price"])
     df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
