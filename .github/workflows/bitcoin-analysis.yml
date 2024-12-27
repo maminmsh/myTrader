@@ -1,4 +1,4 @@
-name: Python CI
+name: Bitcoin Price Prediction CI
 
 on:
   push:
@@ -31,23 +31,16 @@ jobs:
           pip install --upgrade pip
           pip install -r requirements.txt
 
-      # Run tests or any other commands (e.g., training, etc.)
-      - name: Run tests
+      # Run the Bitcoin prediction code
+      - name: Run Bitcoin Price Prediction
         run: |
           source venv/bin/activate
-          # اگر کدهای تستی دارید می‌توانید اینجا اجرا کنید
-          pytest
+          # اجرای کد شما برای پیش‌بینی قیمت بیت‌کوین
+          python bitcoin_prediction.py
 
-      # Optional: Save the model or results after execution
-      - name: Save model
-        run: |
-          # کد ذخیره مدل یا سایر خروجی‌ها
-          mkdir -p results
-          cp -r model.h5 results/
-
-      # Upload model artifacts using the latest version of the action
-      - name: Upload model artifacts
+      # Upload plot artifacts using the latest version of the action
+      - name: Upload Bitcoin Prediction Plot
         uses: actions/upload-artifact@v3
         with:
-          name: model-artifact
-          path: results/
+          name: bitcoin-prediction-plot
+          path: plots/
