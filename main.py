@@ -16,7 +16,8 @@ proxies = {
 
 # 1. دریافت داده‌های بیت‌کوین
 def fetch_data():
-    exchange = ccxt.binance({'proxies': proxies})
+    # exchange = ccxt.binance({'proxies': proxies})
+    exchange = ccxt.binance()
     data = exchange.fetch_ohlcv('BTC/USDT', timeframe='5m', limit=1000)
     df = pd.DataFrame(data, columns=['time', 'open', 'high', 'low', 'close', 'volume'])
     df['time'] = pd.to_datetime(df['time'], unit='ms')
