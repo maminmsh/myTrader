@@ -18,10 +18,10 @@ jobs:
         uses: actions/checkout@v2
 
       # Set up Python environment
-      - name: Set up Python 3.8
+      - name: Set up Python 3.12.5
         uses: actions/setup-python@v2
         with:
-          python-version: 3.8
+          python-version: 3.12.5
 
       # Install dependencies from requirements.txt
       - name: Install dependencies
