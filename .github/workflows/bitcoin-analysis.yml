@@ -45,9 +45,9 @@ jobs:
           mkdir -p results
           cp -r model.h5 results/
 
-      # Optional: Push results or artifacts
+      # Upload model artifacts using the latest version of the action
       - name: Upload model artifacts
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: model-artifact
           path: results/
