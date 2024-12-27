@@ -1,27 +1,53 @@
-name: Bitcoin Analysis
+name: Python CI
 
 on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
-  run-analysis:
+  build:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      # Checkout the code from the repository
+      - name: Checkout code
+        uses: actions/checkout@v2
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: 3.9
+      # Set up Python environment
+      - name: Set up Python 3.8
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.8
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
+      # Install dependencies from requirements.txt
+      - name: Install dependencies
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+          pip install --upgrade pip
+          pip install -r requirements.txt
 
-    - name: Run Bitcoin Analysis
-      run: python main.py
+      # Run tests or any other commands (e.g., training, etc.)
+      - name: Run tests
+        run: |
+          source venv/bin/activate
+          # اگر کدهای تستی دارید می‌توانید اینجا اجرا کنید
+          pytest
+
+      # Optional: Save the model or results after execution
+      - name: Save model
+        run: |
+          # کد ذخیره مدل یا سایر خروجی‌ها
+          mkdir -p results
+          cp -r model.h5 results/
+
+      # Optional: Push results or artifacts
+      - name: Upload model artifacts
+        uses: actions/upload-artifact@v2
+        with:
+          name: model-artifact
+          path: results/
