@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 import os
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense
+from tensorflow.keras.layers import LSTM, Dense,Dropout
 from sklearn.preprocessing import MinMaxScaler
 
 # تنظیم پروکسی
@@ -16,8 +16,8 @@ proxies = {
 
 # 1. دریافت داده‌های بیت‌کوین
 def fetch_data():
-    # exchange = ccxt.binance({'proxies': proxies})
-    exchange = ccxt.binance()
+    exchange = ccxt.binance({'proxies': proxies})
+    # exchange = ccxt.binance()
     data = exchange.fetch_ohlcv('BTC/USDT', timeframe='5m', limit=1000)
     df = pd.DataFrame(data, columns=['time', 'open', 'high', 'low', 'close', 'volume'])
     df['time'] = pd.to_datetime(df['time'], unit='ms')
@@ -34,33 +34,45 @@ def preprocess_data(df):
         y.append(scaled_data[i, 0])
     return np.array(X), np.array(y), scaler
 
-# 3. ساخت و آموزش مدل LSTM
+# 3. ساخت و آموزش مدل LSTM با تعداد لایه‌های بیشتر و ایپاک‌های بیشتر
 def build_and_train_model(X_train, y_train):
     model = Sequential([
-        LSTM(50, return_sequences=True, input_shape=(X_train.shape[1], 1)),
-        LSTM(50),
-        Dense(1)
+        LSTM(50, return_sequences=True, input_shape=(X_train.shape[1], 1)),  # لایه اول LSTM
+        Dropout(0.2),  # لایه Dropout با نرخ 20%
+        LSTM(100, return_sequences=True),  # لایه دوم LSTM
+        Dropout(0.2),  # لایه Dropout با نرخ 20%
+        LSTM(100),  # لایه سوم LSTM
+        Dropout(0.2),  # لایه Dropout با نرخ 20%
+        Dense(1)  # لایه خروجی که پیش‌بینی قیمت را تولید می‌کند
     ])
     model.compile(optimizer='adam', loss='mean_squared_error')
-    model.fit(X_train, y_train, epochs=10, batch_size=32, verbose=1)
+    model.fit(X_train, y_train, epochs=50, batch_size=32, verbose=1)  # تعداد ایپاک‌ها به 50 تغییر یافت
     return model
 
-# 4. پیش‌بینی چند گام آینده
+
+
+# 4. پیش‌بینی چند گام آینده با استفاده از همه ویژگی‌ها
 def predict_future_prices(model, last_data, scaler, n_steps):
     predictions = []
     current_input = last_data
 
     for _ in range(n_steps):
+        # پیش‌بینی قیمت با استفاده از مدل
         predicted_price = model.predict(current_input)
-        predicted_price = scaler.inverse_transform(predicted_price)
-        predictions.append(predicted_price[0, 0])
-        current_input = np.append(current_input[:, 1:, :], predicted_price.reshape(1, 1, 1), axis=1)
+
+        # تبدیل پیش‌بینی به مقیاس واقعی
+        predicted_price_rescaled = scaler.inverse_transform(np.hstack((np.zeros((predicted_price.shape[0], 4)), predicted_price)))  # اضافه کردن صفر برای ۴ ویژگی دیگر
+        predictions.append(predicted_price_rescaled[0, 4])  # فقط قیمت close را انتخاب می‌کنیم
+
+        # به روز رسانی ورودی برای گام بعدی
+        current_input = np.append(current_input[:, 1:, :], predicted_price_rescaled[:, 4].reshape(-1, 1, 1), axis=1)
 
     return predictions
 
+
 # 5. رسم نمودار پیش‌بینی‌ها
 def plot_predictions(df, scaler, model, X_test, future_predictions):
-    predictions = model.predict(X_test)
+    predictions = model.predict(X_test)  
     predictions = scaler.inverse_transform(predictions)
     actual = scaler.inverse_transform(X_test[:, -1].reshape(-1, 1))
 
