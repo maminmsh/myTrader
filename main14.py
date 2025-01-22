@@ -1,7 +1,7 @@
 import ccxt
 import pandas as pd
 import plotly.graph_objects as go
-from dash import Dash, dcc, html, Input, Output
+from dash import Dash, dcc, html, Input, Output , State
 
 # تنظیم پروکسی
 proxies = {
@@ -207,6 +207,11 @@ app.layout = html.Div([
         html.Label("RSI Period:"),
         dcc.Input(id='rsi-period', type='number', value=14, min=1),
     ], style={'margin-bottom': '20px'}),
+     dcc.Interval(
+        id='refresh-interval',
+        interval=0.5*60000,  # هر ۵ دقیقه (بر حسب میلی‌ثانیه)
+        n_intervals=0     # تعداد دفعاتی که این تایمر اجرا شده است
+    ),
     dcc.Graph(id='main-chart'),
     dcc.Graph(id='rsi-chart'),
     dcc.Graph(id='macd-chart'),
@@ -279,10 +284,13 @@ def generate_signal_description(df):
      Output('rsi-chart', 'figure'),
      Output('macd-chart', 'figure'),
      Output('signal-description', 'children')],
-    [Input('sma-period', 'value'),
-     Input('rsi-period', 'value')]
+  [Input('refresh-interval', 'n_intervals')], 
+          [State('sma-period', 'value'),              # مقادیر SMA و RSI به عنوان State
+     State('rsi-period', 'value')]
+    # [Input('sma-period', 'value'),
+    #  Input('rsi-period', 'value')]
 )
-def update_charts_and_description(sma_period, rsi_period):
+def update_charts_and_description(n_intervals,sma_period, rsi_period):
     # محاسبه اندیکاتورها
     updated_df = calculate_indicators(df, sma_period=sma_period, rsi_period=rsi_period)
 

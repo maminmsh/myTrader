@@ -1,7 +1,7 @@
 import ccxt
 import pandas as pd
 import plotly.graph_objects as go
-from dash import Dash, dcc, html, Input, Output
+from dash import Dash, dcc, html, Input, Output , State
 
 # تنظیم پروکسی
 proxies = {
@@ -207,9 +207,15 @@ app.layout = html.Div([
         html.Label("RSI Period:"),
         dcc.Input(id='rsi-period', type='number', value=14, min=1),
     ], style={'margin-bottom': '20px'}),
+     dcc.Interval(
+        id='refresh-interval',
+        interval=0.5*60000,  # هر ۵ دقیقه (بر حسب میلی‌ثانیه)
+        n_intervals=0     # تعداد دفعاتی که این تایمر اجرا شده است
+    ),
     dcc.Graph(id='main-chart'),
     dcc.Graph(id='rsi-chart'),
     dcc.Graph(id='macd-chart'),
+    dcc.Graph(id='stochastic-atr-chart')
 ])
 
 
@@ -221,11 +227,11 @@ def generate_signal_description(df):
     sell_signals = df[df['Sell_Signal']]
 
     if not buy_signals.empty:
-        latest_buy = buy_signals.iloc[-1]  # آخرین سیگنال خرید
+        latest_buy = buy_signals.iloc[-1]
         descriptions.append(f"💚 **Buy Signal** detected at {latest_buy['time']} with price {latest_buy['close']:.2f}.")
 
     if not sell_signals.empty:
-        latest_sell = sell_signals.iloc[-1]  # آخرین سیگنال فروش
+        latest_sell = sell_signals.iloc[-1]
         descriptions.append(f"❤️ **Sell Signal** detected at {latest_sell['time']} with price {latest_sell['close']:.2f}.")
 
     # بررسی وضعیت RSI
@@ -265,6 +271,23 @@ def generate_signal_description(df):
     else:
         descriptions.append(f"⚪ MACD and Signal are equal ({latest_macd:.2f}).")
 
+    # بررسی وضعیت ATR
+    latest_atr = df['ATR'].iloc[-1]
+    atr_mean = df['ATR'].mean()
+    if latest_atr > atr_mean:
+        descriptions.append(f"📈 ATR ({latest_atr:.2f}) is above its average ({atr_mean:.2f}), indicating high volatility.")
+    else:
+        descriptions.append(f"📉 ATR ({latest_atr:.2f}) is below its average ({atr_mean:.2f}), indicating low volatility.")
+
+    # بررسی وضعیت Stochastic
+    latest_stoch_k = df['Stoch_K'].iloc[-1]
+    if latest_stoch_k > 80:
+        descriptions.append(f"📈 Stochastic %K ({latest_stoch_k:.2f}) is above 80, indicating overbought conditions.")
+    elif latest_stoch_k < 20:
+        descriptions.append(f"📉 Stochastic %K ({latest_stoch_k:.2f}) is below 20, indicating oversold conditions.")
+    else:
+        descriptions.append(f"⚪ Stochastic %K ({latest_stoch_k:.2f}) is neutral.")
+
     # اگر توضیحاتی وجود نداشت
     if not descriptions:
         descriptions.append("⚪ No active signals or indicators detected at this time.")
@@ -272,19 +295,75 @@ def generate_signal_description(df):
     return descriptions
 
 
+def create_stochastic_and_atr_chart(df):
+    fig = go.Figure()
+
+    # Stochastic نمودار
+    fig.add_trace(go.Scatter(
+        x=df['time'],
+        y=df['Stoch_K'],
+        line=dict(color='blue', width=1.5),
+        name='Stochastic %K'
+    ))
+    fig.add_trace(go.Scatter(
+        x=df['time'],
+        y=df['Stoch_D'],
+        line=dict(color='orange', width=1.5),
+        name='Stochastic %D'
+    ))
+
+    # ATR نمودار
+    fig.add_trace(go.Scatter(
+        x=df['time'],
+        y=df['ATR'],
+        line=dict(color='purple', width=1.5),
+        name='ATR'
+    ))
+
+    fig.update_layout(title="Stochastic & ATR", xaxis_title="Time", yaxis_title="Value")
+    return fig
+
+# اضافه کردن توضیحات مربوط به Stochastic و ATR
+def generate_stochastic_atr_signals(df):
+    signals = []
+
+    # سیگنال‌های Stochastic
+    if df['Stoch_K'].iloc[-1] > 80:
+        signals.append("📈 Stochastic %K is above 80, indicating overbought conditions.")
+    elif df['Stoch_K'].iloc[-1] < 20:
+        signals.append("📉 Stochastic %K is below 20, indicating oversold conditions.")
+
+    # ATR وضعیت
+    atr = df['ATR'].iloc[-1]
+    atr_mean = df['ATR'].mean()
+    if atr > atr_mean:
+        signals.append(f"⚡ ATR ({atr:.2f}) is above average ({atr_mean:.2f}), indicating high volatility.")
+    else:
+        signals.append(f"💤 ATR ({atr:.2f}) is below average ({atr_mean:.2f}), indicating low volatility.")
+
+    return signals
+
 
 # Callback برای به‌روزرسانی نمودارها
 @app.callback(
     [Output('main-chart', 'figure'),
      Output('rsi-chart', 'figure'),
      Output('macd-chart', 'figure'),
-     Output('signal-description', 'children')],
-    [Input('sma-period', 'value'),
-     Input('rsi-period', 'value')]
+     Output('signal-description', 'children'),
+     Output('stochastic-atr-chart', 'figure')],
+  [Input('refresh-interval', 'n_intervals')], 
+          [State('sma-period', 'value'),              # مقادیر SMA و RSI به عنوان State
+     State('rsi-period', 'value')]
+    # [Input('sma-period', 'value'),
+    #  Input('rsi-period', 'value')]
 )
-def update_charts_and_description(sma_period, rsi_period):
+def update_charts_and_description(n_intervals,sma_period, rsi_period):
     # محاسبه اندیکاتورها
     updated_df = calculate_indicators(df, sma_period=sma_period, rsi_period=rsi_period)
+
+    # تولید توضیحات سیگنال‌ها
+    signal_descriptions = generate_signal_description(updated_df)
+    stochastic_atr_signals = generate_stochastic_atr_signals(updated_df)
 
     # تولید توضیحات سیگنال‌ها
     signal_descriptions = generate_signal_description(updated_df)
@@ -297,7 +376,8 @@ def update_charts_and_description(sma_period, rsi_period):
         create_main_chart(updated_df),
         create_rsi_chart(updated_df),
         create_macd_chart(updated_df),
-        description_text
+        description_text,
+        create_stochastic_and_atr_chart(updated_df)
     )
 
 # اجرای برنامه
